@@ -27,6 +27,10 @@ import java.io.IOException;
 
 /** A class for handling CSS Products for a given Account */
 public class ProductsService {
+  private final String DEFAULT_CSS_PRODUCTS_PAGE_SIZE = "100";
+  private final int CSS_PRODUCTS_PAGE_SIZE =
+      Integer.parseInt(
+          System.getProperty("feedviz.css.products.page.size", DEFAULT_CSS_PRODUCTS_PAGE_SIZE));
 
   private AccountInfo accountInfo;
   private CssProductsServiceClient cssProductsServiceClient;
@@ -66,7 +70,11 @@ public class ProductsService {
 
     String parent = getParent();
 
-    ListCssProductsRequest request = ListCssProductsRequest.newBuilder().setParent(parent).build();
+    ListCssProductsRequest request =
+        ListCssProductsRequest.newBuilder()
+            .setParent(parent)
+            .setPageSize(CSS_PRODUCTS_PAGE_SIZE)
+            .build();
 
     ListCssProductsPagedResponse response = this.cssProductsServiceClient.listCssProducts(request);
     return response.iterateAll();

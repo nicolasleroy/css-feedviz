@@ -94,6 +94,7 @@ The TransferCssProducts service supports the following Java System Properties to
 | feedviz.account.info.group.id | `null` | The CSS Group ID. |
 | feedviz.account.info.file | `"account-info.json"` | Name of file containing CSS Center account details. |
 | feedviz.config.dir | `"./config"` | Path to directory containing configuration files |
+| feedviz.css.products.page.size | `"100"` | The number of products to request per CSS API page. Lower this if CSS product listing hits request deadlines. |
 | feedviz.dataset.location | `"EU"` | Location of Google Cloud servers where data will be stored/processed. |
 | feedviz.dataset.name | `"css_feedviz"` | Name of the dataset that will be used/created in BigQuery. |
 | feedviz.insert.batch.size | `"100"` | The batch size when inserting products into BigQuery. |

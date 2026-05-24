@@ -56,6 +56,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -466,6 +467,12 @@ public class BigQueryService {
     if (!datasetExists(datasetName)) createDataset(datasetName, datasetLocation);
     if (!tableExists(datasetName, tableName)) createCssProductsTable(datasetName, tableName);
 
+    Iterator<List<CssProduct>> batchIterator =
+        Iterables.partition(cssProducts, INSERT_BATCH_SIZE).iterator();
+    if (!batchIterator.hasNext()) {
+      return;
+    }
+
     TableId tableId =
         TableId.of(this.serviceAccountCredentials.getProjectId(), datasetName, tableName);
 
@@ -479,52 +486,55 @@ public class BigQueryService {
     ExecutorService executorService =
         Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
-    List<CompletableFuture<AppendRowsResponse>> futures = new ArrayList<>();
-    long offset = 0;
-    for (List<CssProduct> batch : Iterables.partition(cssProducts, INSERT_BATCH_SIZE)) {
-      List<Map<String, Object>> batchRows =
-          batch.stream().map(cssProduct -> getCssProductAsMap(cssProduct, transferDate)).toList();
-      JSONArray jsonArray = new JSONArray(batchRows);
+    try {
+      List<CompletableFuture<AppendRowsResponse>> futures = new ArrayList<>();
+      long offset = 0;
+      while (batchIterator.hasNext()) {
+        List<CssProduct> batch = batchIterator.next();
+        List<Map<String, Object>> batchRows =
+            batch.stream().map(cssProduct -> getCssProductAsMap(cssProduct, transferDate)).toList();
+        JSONArray jsonArray = new JSONArray(batchRows);
 
-      // The offset is used to track the number of rows that have been written to the stream.
-      // The offset is used to ensure that the rows are written in the correct order.
-      final long currentOffset = offset;
-      CompletableFuture<AppendRowsResponse> future =
-          CompletableFuture.supplyAsync(
-              () -> {
-                try {
-                  ApiFuture<AppendRowsResponse> apiFuture =
-                      streamWriter.append(jsonArray, currentOffset);
-                  return apiFuture.get();
-                } catch (DescriptorValidationException
-                    | InterruptedException
-                    | ExecutionException
-                    | IOException e) {
-                  throw new CompletionException(e);
-                }
-              },
-              executorService);
-      futures.add(future);
-      offset += jsonArray.length();
-    }
-
-    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-        .thenRun(streamWriter::close)
-        .thenRun(writeClient::close)
-        .exceptionally(
-            ex -> {
-              synchronized (this.lock) {
-                this.error = ex;
-              }
-              return null;
-            })
-        .join();
-
-    executorService.shutdown();
-    synchronized (this.lock) {
-      if (this.error != null) {
-        throw new RuntimeException(this.error);
+        // The offset tracks rows written to the stream and preserves append ordering.
+        final long currentOffset = offset;
+        CompletableFuture<AppendRowsResponse> future =
+            CompletableFuture.supplyAsync(
+                () -> {
+                  try {
+                    ApiFuture<AppendRowsResponse> apiFuture =
+                        streamWriter.append(jsonArray, currentOffset);
+                    return apiFuture.get();
+                  } catch (DescriptorValidationException
+                      | InterruptedException
+                      | ExecutionException
+                      | IOException e) {
+                    throw new CompletionException(e);
+                  }
+                },
+                executorService);
+        futures.add(future);
+        offset += jsonArray.length();
       }
+
+      CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+          .exceptionally(
+              ex -> {
+                synchronized (this.lock) {
+                  this.error = ex;
+                }
+                return null;
+              })
+          .join();
+
+      synchronized (this.lock) {
+        if (this.error != null) {
+          throw new RuntimeException(this.error);
+        }
+      }
+    } finally {
+      streamWriter.close();
+      writeClient.close();
+      executorService.shutdown();
     }
   }
 
