@@ -5,8 +5,10 @@ import com.google.cssfeedviz.css.ProductsService.CssProductsPage;
 import com.google.cssfeedviz.gcp.BigQueryService;
 import com.google.cssfeedviz.utils.AccountInfo;
 import com.google.cssfeedviz.utils.TransferCheckpoint;
+import com.google.shopping.css.v1.CssProduct;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -15,6 +17,7 @@ public class TransferCssProducts {
   private static final String DEFAULT_ACCOUNT_INFO_FILE = "account-info.json";
   private static final String DEFAULT_DATASET_NAME = "css_feedviz";
   private static final String DEFAULT_DATASET_LOCATION = "EU";
+  private static final String DEFAULT_TRANSFER_CHUNK_SIZE = "5000";
 
   private static final String CONFIG_DIR =
       System.getProperty("feedviz.config.dir", DEFAULT_CONFIG_DIR);
@@ -24,6 +27,9 @@ public class TransferCssProducts {
       System.getProperty("feedviz.dataset.name", DEFAULT_DATASET_NAME);
   private static String DATASET_LOCATION =
       System.getProperty("feedviz.dataset.location", DEFAULT_DATASET_LOCATION);
+  private static int TRANSFER_CHUNK_SIZE =
+      Integer.parseInt(
+          System.getProperty("feedviz.transfer.chunk.size", DEFAULT_TRANSFER_CHUNK_SIZE));
 
   private static AccountInfo getAccountInfo() throws IOException {
     String accountInfoDomainId = System.getProperty("feedviz.account.info.domain.id");
@@ -86,6 +92,9 @@ public class TransferCssProducts {
     String pageToken = checkpoint.getNextPageToken();
     long rowsWritten = checkpoint.getRowsWritten();
     long pagesWritten = checkpoint.getPagesWritten();
+    List<CssProduct> productChunk = new ArrayList<>();
+    String chunkNextPageToken = pageToken;
+    long chunkPageCount = 0;
 
     if (!pageToken.isEmpty()) {
       System.out.printf(
@@ -95,18 +104,26 @@ public class TransferCssProducts {
 
     while (true) {
       CssProductsPage page = productsService.listCssProductsPage(pageToken);
-      if (!page.products().isEmpty()) {
+      productChunk.addAll(page.products());
+      chunkNextPageToken = page.nextPageToken();
+      chunkPageCount += 1;
+
+      if (productChunk.size() >= TRANSFER_CHUNK_SIZE
+          || chunkNextPageToken == null
+          || chunkNextPageToken.isEmpty()) {
         bigQueryService.streamCssProducts(
-            DATASET_NAME, DATASET_LOCATION, tableName, page.products(), checkpoint.getTransferDate());
-        rowsWritten += page.products().size();
-        pagesWritten += 1;
+            DATASET_NAME, DATASET_LOCATION, tableName, productChunk, checkpoint.getTransferDate());
+        rowsWritten += productChunk.size();
+        pagesWritten += chunkPageCount;
+        checkpoint = checkpoint.save(chunkNextPageToken, rowsWritten, pagesWritten);
+        System.out.printf(
+            "Transferred domain %s through page %d, total rows written: %d.%n",
+            domainId, pagesWritten, rowsWritten);
+        productChunk.clear();
+        chunkPageCount = 0;
       }
 
-      pageToken = page.nextPageToken();
-      checkpoint = checkpoint.save(pageToken, rowsWritten, pagesWritten);
-      System.out.printf(
-          "Transferred domain %s page %d, total rows written: %d.%n",
-          domainId, pagesWritten, rowsWritten);
+      pageToken = chunkNextPageToken;
 
       if (pageToken == null || pageToken.isEmpty()) {
         checkpoint.delete();

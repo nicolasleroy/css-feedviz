@@ -101,6 +101,7 @@ The TransferCssProducts service supports the following Java System Properties to
 | feedviz.dataset.location | `"EU"` | Location of Google Cloud servers where data will be stored/processed. |
 | feedviz.dataset.name | `"css_feedviz"` | Name of the dataset that will be used/created in BigQuery. |
 | feedviz.insert.batch.size | `"100"` | The batch size when inserting products into BigQuery. |
+| feedviz.transfer.chunk.size | `"5000"` | Number of CSS products to accumulate before writing a resumable chunk to BigQuery. |
 
 ### CSS Products Schema
 
