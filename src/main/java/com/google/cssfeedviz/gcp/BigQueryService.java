@@ -68,7 +68,8 @@ import javax.annotation.concurrent.GuardedBy;
 import org.json.JSONArray;
 
 public class BigQueryService {
-  private final String CSS_PRODUCTS_TABLE_NAME = "css_products";
+  private static final String CSS_PRODUCTS_TABLE_NAME = "css_products";
+  private static final String CSS_PRODUCTS_TABLE_NAME_PREFIX = CSS_PRODUCTS_TABLE_NAME + "_";
   private final String DEFAULT_INSERT_BATCH_SIZE = "100";
   private final int INSERT_BATCH_SIZE =
       Integer.parseInt(System.getProperty("feedviz.insert.batch.size", DEFAULT_INSERT_BATCH_SIZE));
@@ -99,8 +100,16 @@ public class BigQueryService {
     return this.bigQuery.create(datasetInfo);
   }
 
+  public static String getCssProductsTableName(String domainId) {
+    return CSS_PRODUCTS_TABLE_NAME_PREFIX + domainId;
+  }
+
   public Table createCssProductsTable(String datasetName) {
-    TableId tableId = TableId.of(datasetName, CSS_PRODUCTS_TABLE_NAME);
+    return createCssProductsTable(datasetName, CSS_PRODUCTS_TABLE_NAME);
+  }
+
+  public Table createCssProductsTable(String datasetName, String tableName) {
+    TableId tableId = TableId.of(datasetName, tableName);
     long thirtyDaysInMs = 2592000000L;
     TimePartitioning timePartitioning =
         TimePartitioning.newBuilder(TimePartitioning.Type.HOUR)
@@ -438,13 +447,27 @@ public class BigQueryService {
           IOException,
           IllegalArgumentException,
           DescriptorValidationException {
+    streamCssProducts(
+        datasetName, datasetLocation, CSS_PRODUCTS_TABLE_NAME, cssProducts, transferDate);
+  }
+
+  public void streamCssProducts(
+      String datasetName,
+      String datasetLocation,
+      String tableName,
+      Iterable<CssProduct> cssProducts,
+      LocalDateTime transferDate)
+      throws InterruptedException,
+          ExecutionException,
+          IOException,
+          IllegalArgumentException,
+          DescriptorValidationException {
 
     if (!datasetExists(datasetName)) createDataset(datasetName, datasetLocation);
-    if (!tableExists(datasetName, CSS_PRODUCTS_TABLE_NAME)) createCssProductsTable(datasetName);
+    if (!tableExists(datasetName, tableName)) createCssProductsTable(datasetName, tableName);
 
     TableId tableId =
-        TableId.of(
-            this.serviceAccountCredentials.getProjectId(), datasetName, CSS_PRODUCTS_TABLE_NAME);
+        TableId.of(this.serviceAccountCredentials.getProjectId(), datasetName, tableName);
 
     BigQueryWriteClient writeClient = BigQueryWriteClient.create();
     WriteStream writeStream = createWriteStream(writeClient, tableId);

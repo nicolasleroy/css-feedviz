@@ -386,6 +386,11 @@ public class BigQueryServiceTest {
   }
 
   @Test
+  public void getCssProductsTableName_returnsDomainSpecificTableName() {
+    assertEquals("css_products_456", BigQueryService.getCssProductsTableName("456"));
+  }
+
+  @Test
   public void getPriceAsMap() {
     assertEquals(
         TEST_PRICE_MAP, bigQueryService.getPriceAsMap(CSS_PRODUCT.getAttributes().getLowPrice()));

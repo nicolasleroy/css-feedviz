@@ -7,6 +7,8 @@ import com.google.shopping.css.v1.CssProduct;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
 
 public class TransferCssProducts {
   private static final String DEFAULT_CONFIG_DIR = "./config";
@@ -22,35 +24,53 @@ public class TransferCssProducts {
       System.getProperty("feedviz.dataset.name", DEFAULT_DATASET_NAME);
   private static String DATASET_LOCATION =
       System.getProperty("feedviz.dataset.location", DEFAULT_DATASET_LOCATION);
-  private static String ACCOUNT_INFO_DOMAIN_ID =
-      System.getProperty("feedviz.account.info.domain.id");
-  private static String ACCOUNT_INFO_GROUP_ID = System.getProperty("feedviz.account.info.group.id");
-  private static String ACCOUNT_INFO_MERCHANT_ID =
-      System.getProperty("feedviz.account.info.merchant.id");
 
   private static AccountInfo getAccountInfo() throws IOException {
-    BigInteger domainId =
-        (ACCOUNT_INFO_DOMAIN_ID != null) ? new BigInteger(ACCOUNT_INFO_DOMAIN_ID) : null;
+    String accountInfoDomainId = System.getProperty("feedviz.account.info.domain.id");
+    String accountInfoDomainIds = System.getProperty("feedviz.account.info.domain.ids");
+    String accountInfoGroupId = System.getProperty("feedviz.account.info.group.id");
+    String accountInfoMerchantId = System.getProperty("feedviz.account.info.merchant.id");
+    List<BigInteger> domainIds = parseDomainIds(accountInfoDomainIds, accountInfoDomainId);
     BigInteger groupId =
-        (ACCOUNT_INFO_GROUP_ID != null) ? new BigInteger(ACCOUNT_INFO_GROUP_ID) : null;
+        (accountInfoGroupId != null) ? new BigInteger(accountInfoGroupId) : null;
     BigInteger merchantId =
-        (ACCOUNT_INFO_MERCHANT_ID != null) ? new BigInteger(ACCOUNT_INFO_MERCHANT_ID) : null;
-    if (domainId != null || groupId != null || merchantId != null) {
-      return AccountInfo.create(CONFIG_DIR, merchantId, domainId, groupId);
+        (accountInfoMerchantId != null) ? new BigInteger(accountInfoMerchantId) : null;
+    if (!domainIds.isEmpty() || groupId != null || merchantId != null) {
+      return AccountInfo.createWithDomainIds(CONFIG_DIR, merchantId, domainIds, groupId);
     } else {
       return AccountInfo.load(CONFIG_DIR, ACCOUNT_INFO_FILE);
     }
   }
 
+  private static List<BigInteger> parseDomainIds(String domainIds, String domainId) {
+    String domainIdsValue = (domainIds != null) ? domainIds : domainId;
+    if (domainIdsValue == null || domainIdsValue.isBlank()) {
+      return List.of();
+    }
+    return Arrays.stream(domainIdsValue.split(","))
+        .map(String::trim)
+        .filter(value -> !value.isEmpty())
+        .map(BigInteger::new)
+        .toList();
+  }
+
   public static void main(String[] args) {
     try {
       AccountInfo accountInfo = getAccountInfo();
-      ProductsService productsService = ProductsService.create(accountInfo);
-      Iterable<CssProduct> cssProducts = productsService.listCssProducts();
-
+      if (accountInfo.getDomainIds().isEmpty()) {
+        throw new IllegalArgumentException("At least one CSS Domain ID must be provided.");
+      }
       BigQueryService bigQueryService = new BigQueryService(accountInfo);
-      bigQueryService.streamCssProducts(
-          DATASET_NAME, DATASET_LOCATION, cssProducts, LocalDateTime.now());
+      LocalDateTime transferDate = LocalDateTime.now();
+
+      for (BigInteger domainId : accountInfo.getDomainIds()) {
+        AccountInfo domainAccountInfo = accountInfo.forDomainId(domainId);
+        ProductsService productsService = ProductsService.create(domainAccountInfo);
+        Iterable<CssProduct> cssProducts = productsService.listCssProducts();
+        String tableName = BigQueryService.getCssProductsTableName(domainId.toString());
+        bigQueryService.streamCssProducts(
+            DATASET_NAME, DATASET_LOCATION, tableName, cssProducts, transferDate);
+      }
     } catch (Exception e) {
       System.err.println(e.getMessage());
       e.printStackTrace();

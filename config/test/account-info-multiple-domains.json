@@ -1,0 +1,5 @@
+{
+    "groupId": 123,
+    "domainIds": [456, 457],
+    "merchantId": 789
+}

@@ -55,6 +55,7 @@ In order to provide CSS FeedViz with the relevant CSS Center account information
 | :--- | :--- | :--- |
 | groupId | number | The CSS Group ID. |
 | domainId | number | The CSS Domain ID to retrieve products for. |
+| domainIds | array of numbers | The CSS Domain IDs to retrieve products for. Use this instead of `domainId` when loading several domains from the same CSS Group ID. |
 
 CSS FeedViz may also be provided with the CSS Center account information via [Java System Properties](#transfercssproducts-system-properties). In the event that both System Properties and an account information JSON file are provided, the System Properties take precedence.
 
@@ -76,7 +77,7 @@ mvn exec:java -Dexec.mainClass="com.google.cssfeedviz.TransferCssProducts"
 
 To access the CSS FeedViz Looker Studio dashboard template, first [join the CSS FeedViz Google Group](https://groups.google.com/g/css-feedviz/). Once you’ve joined, make a copy of [this Looker Studio template](https://lookerstudio.google.com/c/u/0/reporting/94023eb5-ce2f-445a-94c5-63112318de63/page/TLFIC/preview).
 
-Configure the Looker Studio [BigQuery Connector](https://support.google.com/looker-studio/topic/10587734) to connect to the css\_feedviz BigQuery table that has been created by the CSS Products data transfer. This can be done under the **Resource** > **Manage added data sources** menu item in Looker Studio. Further information on configuring the Looker Studio BigQuery connector can be found [here](https://support.google.com/looker-studio/answer/6370296).
+Configure the Looker Studio [BigQuery Connector](https://support.google.com/looker-studio/topic/10587734) to connect to the css\_products\_[CSS Domain ID] BigQuery table that has been created by the CSS Products data transfer. This can be done under the **Resource** > **Manage added data sources** menu item in Looker Studio. Further information on configuring the Looker Studio BigQuery connector can be found [here](https://support.google.com/looker-studio/answer/6370296).
 
 Once properly configured, you should have a dashboard with two populated pages, one with a CSS level attributes and the other with Product level attributes.
 
@@ -89,6 +90,7 @@ The TransferCssProducts service supports the following Java System Properties to
 | System property | Default value | Description |
 | :--- | :--- | :--- |
 | feedviz.account.info.domain.id | `null` | The CSS Domain ID to retrieve products for. |
+| feedviz.account.info.domain.ids | `null` | Comma-separated CSS Domain IDs to retrieve products for. This takes precedence over `feedviz.account.info.domain.id`. |
 | feedviz.account.info.group.id | `null` | The CSS Group ID. |
 | feedviz.account.info.file | `"account-info.json"` | Name of file containing CSS Center account details. |
 | feedviz.config.dir | `"./config"` | Path to directory containing configuration files |
@@ -98,7 +100,7 @@ The TransferCssProducts service supports the following Java System Properties to
 
 ### CSS Products Schema
 
-The schema of the css\_products table in BigQuery aligns with the [CssProduct resource in CSS API](https://developers.devsite.corp.google.com/comparison-shopping-services/api/reference/rest/v1/accounts.cssProducts) as follows:
+The schema of each css\_products\_[CSS Domain ID] table in BigQuery aligns with the [CssProduct resource in CSS API](https://developers.devsite.corp.google.com/comparison-shopping-services/api/reference/rest/v1/accounts.cssProducts) as follows:
 
 <table>
   <tr>

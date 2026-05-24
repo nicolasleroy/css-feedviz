@@ -1,5 +1,6 @@
 package com.google.cssfeedviz;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
@@ -26,6 +27,7 @@ public class TransferCssProductsTest {
   private final String TEST_DATASET_LOCATION = "EU";
   private final String TEST_GROUP_ID = "123";
   private final String TEST_DOMAIN_ID = "456";
+  private final String TEST_DOMAIN_ID_2 = "457";
   private final String TEST_MERCHANT_ID = "789";
   private final CssProduct CSS_PRODUCT = CssProduct.newBuilder().setName(TEST_PRODUCT_NAME).build();
   private final List<CssProduct> CSS_PRODUCT_LIST = List.of(CSS_PRODUCT);
@@ -37,6 +39,7 @@ public class TransferCssProductsTest {
 
   @Before
   public void setUp() {
+    clearAccountSystemProperties();
     System.setProperty("feedviz.config.dir", TEST_CONFIG_DIR);
 
     mockedStaticLocalDateTime = mockStatic(LocalDateTime.class);
@@ -53,9 +56,17 @@ public class TransferCssProductsTest {
 
   @After
   public void tearDown() {
+    clearAccountSystemProperties();
     mockedStaticLocalDateTime.close();
     mockProductsServiceController.close();
     mockBigQueryServiceController.close();
+  }
+
+  private void clearAccountSystemProperties() {
+    System.clearProperty("feedviz.account.info.domain.id");
+    System.clearProperty("feedviz.account.info.domain.ids");
+    System.clearProperty("feedviz.account.info.group.id");
+    System.clearProperty("feedviz.account.info.merchant.id");
   }
 
   @Test
@@ -72,7 +83,11 @@ public class TransferCssProductsTest {
     BigQueryService mockBigQueryService = mockBigQueryServiceController.constructed().get(0);
     verify(mockBigQueryService)
         .streamCssProducts(
-            TEST_DATASET_NAME, TEST_DATASET_LOCATION, CSS_PRODUCT_LIST, TEST_TRANSFER_DATE);
+            TEST_DATASET_NAME,
+            TEST_DATASET_LOCATION,
+            "css_products_" + TEST_DOMAIN_ID,
+            CSS_PRODUCT_LIST,
+            TEST_TRANSFER_DATE);
   }
 
   @Test
@@ -93,6 +108,42 @@ public class TransferCssProductsTest {
     BigQueryService mockBigQueryService = mockBigQueryServiceController.constructed().get(0);
     verify(mockBigQueryService)
         .streamCssProducts(
-            TEST_DATASET_NAME, TEST_DATASET_LOCATION, CSS_PRODUCT_LIST, TEST_TRANSFER_DATE);
+            TEST_DATASET_NAME,
+            TEST_DATASET_LOCATION,
+            "css_products_" + TEST_DOMAIN_ID,
+            CSS_PRODUCT_LIST,
+            TEST_TRANSFER_DATE);
+  }
+
+  @Test
+  public void testMain_withMultipleAccountDomainSystemPropertiesSet()
+      throws ExecutionException,
+          InterruptedException,
+          IOException,
+          IllegalArgumentException,
+          DescriptorValidationException {
+    System.setProperty(
+        "feedviz.account.info.domain.ids", TEST_DOMAIN_ID + "," + TEST_DOMAIN_ID_2);
+    System.setProperty("feedviz.account.info.group.id", TEST_GROUP_ID);
+    System.setProperty("feedviz.account.info.merchant.id", TEST_MERCHANT_ID);
+
+    TransferCssProducts.main(null);
+    assertEquals(2, mockProductsServiceController.constructed().size());
+
+    BigQueryService mockBigQueryService = mockBigQueryServiceController.constructed().get(0);
+    verify(mockBigQueryService)
+        .streamCssProducts(
+            TEST_DATASET_NAME,
+            TEST_DATASET_LOCATION,
+            "css_products_" + TEST_DOMAIN_ID,
+            CSS_PRODUCT_LIST,
+            TEST_TRANSFER_DATE);
+    verify(mockBigQueryService)
+        .streamCssProducts(
+            TEST_DATASET_NAME,
+            TEST_DATASET_LOCATION,
+            "css_products_" + TEST_DOMAIN_ID_2,
+            CSS_PRODUCT_LIST,
+            TEST_TRANSFER_DATE);
   }
 }

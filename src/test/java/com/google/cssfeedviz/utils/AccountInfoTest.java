@@ -18,6 +18,7 @@ import static org.junit.Assert.assertThrows;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.List;
 import org.junit.Test;
 
 public class AccountInfoTest {
@@ -25,10 +26,12 @@ public class AccountInfoTest {
   private final String TEST_CONFIG_DIR = "./config/test";
   private final String INVALID_CONFIG_DIR = "./config/test/invalid";
   private final String FILE_NAME = "account-info.json";
+  private final String MULTIPLE_DOMAINS_FILE_NAME = "account-info-multiple-domains.json";
   private final String INVALID_FILE_NAME = "invalid-account-info.json";
 
   private final BigInteger TEST_GROUP_ID = BigInteger.valueOf(123);
   private final BigInteger TEST_DOMAIN_ID = BigInteger.valueOf(456);
+  private final BigInteger TEST_DOMAIN_ID_2 = BigInteger.valueOf(457);
   private final BigInteger TEST_MERCHANT_ID = BigInteger.valueOf(789);
 
   @Test
@@ -37,6 +40,21 @@ public class AccountInfoTest {
         AccountInfo.create(TEST_CONFIG_DIR, TEST_MERCHANT_ID, TEST_DOMAIN_ID, TEST_GROUP_ID);
     assertEquals(accountInfo.getGroupId(), TEST_GROUP_ID);
     assertEquals(accountInfo.getDomainId(), TEST_DOMAIN_ID);
+    assertEquals(accountInfo.getDomainIds(), List.of(TEST_DOMAIN_ID));
+    assertEquals(accountInfo.getMerchantId(), TEST_MERCHANT_ID);
+  }
+
+  @Test
+  public void testCreate_withMultipleDomainIds() throws IOException {
+    AccountInfo accountInfo =
+        AccountInfo.createWithDomainIds(
+            TEST_CONFIG_DIR,
+            TEST_MERCHANT_ID,
+            List.of(TEST_DOMAIN_ID, TEST_DOMAIN_ID_2),
+            TEST_GROUP_ID);
+    assertEquals(accountInfo.getGroupId(), TEST_GROUP_ID);
+    assertEquals(accountInfo.getDomainId(), TEST_DOMAIN_ID);
+    assertEquals(accountInfo.getDomainIds(), List.of(TEST_DOMAIN_ID, TEST_DOMAIN_ID_2));
     assertEquals(accountInfo.getMerchantId(), TEST_MERCHANT_ID);
   }
 
@@ -69,6 +87,16 @@ public class AccountInfoTest {
     AccountInfo accountInfo = AccountInfo.load(TEST_CONFIG_DIR, FILE_NAME);
     assertEquals(accountInfo.getGroupId(), TEST_GROUP_ID);
     assertEquals(accountInfo.getDomainId(), TEST_DOMAIN_ID);
+    assertEquals(accountInfo.getDomainIds(), List.of(TEST_DOMAIN_ID));
+    assertEquals(accountInfo.getMerchantId(), TEST_MERCHANT_ID);
+  }
+
+  @Test
+  public void testLoad_withMultipleDomainIds() throws IOException {
+    AccountInfo accountInfo = AccountInfo.load(TEST_CONFIG_DIR, MULTIPLE_DOMAINS_FILE_NAME);
+    assertEquals(accountInfo.getGroupId(), TEST_GROUP_ID);
+    assertEquals(accountInfo.getDomainId(), TEST_DOMAIN_ID);
+    assertEquals(accountInfo.getDomainIds(), List.of(TEST_DOMAIN_ID, TEST_DOMAIN_ID_2));
     assertEquals(accountInfo.getMerchantId(), TEST_MERCHANT_ID);
   }
 

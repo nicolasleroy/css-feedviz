@@ -23,6 +23,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Wrapper for the JSON configuration file used to keep user specific details like the CSS Center
@@ -35,6 +37,8 @@ public class AccountInfo {
   private BigInteger merchantId;
 
   private BigInteger domainId;
+
+  private List<BigInteger> domainIds = new ArrayList<BigInteger>();
 
   private BigInteger groupId;
 
@@ -72,6 +76,17 @@ public class AccountInfo {
     return config;
   }
 
+  public static AccountInfo createWithDomainIds(
+      String configDir, BigInteger merchantId, List<BigInteger> domainIds, BigInteger groupId)
+      throws IOException {
+    AccountInfo config = new AccountInfo();
+    config.setMerchantId(merchantId);
+    config.setDomainIds(domainIds);
+    config.setGroupId(groupId);
+    config.setPath(getConfigPath(configDir));
+    return config;
+  }
+
   public static AccountInfo load() throws IOException {
     return load(CONFIG_DIR, FILE_NAME);
   }
@@ -91,6 +106,15 @@ public class AccountInfo {
         if ("domainId".equals(fieldname)) {
           jParser.nextToken();
           config.setDomainId(new BigInteger(jParser.getText()));
+        }
+        if ("domainIds".equals(fieldname)) {
+          if (jParser.nextToken() == JsonToken.START_ARRAY) {
+            List<BigInteger> domainIds = new ArrayList<BigInteger>();
+            while (jParser.nextToken() != JsonToken.END_ARRAY) {
+              domainIds.add(new BigInteger(jParser.getText()));
+            }
+            config.setDomainIds(domainIds);
+          }
         }
         if ("groupId".equals(fieldname)) {
           jParser.nextToken();
@@ -125,6 +149,31 @@ public class AccountInfo {
 
   public void setDomainId(BigInteger domainId) {
     this.domainId = domainId;
+    this.domainIds = new ArrayList<BigInteger>();
+    if (domainId != null) {
+      this.domainIds.add(domainId);
+    }
+  }
+
+  public List<BigInteger> getDomainIds() {
+    return domainIds;
+  }
+
+  public void setDomainIds(List<BigInteger> domainIds) {
+    this.domainIds = new ArrayList<BigInteger>();
+    if (domainIds != null) {
+      this.domainIds.addAll(domainIds);
+    }
+    this.domainId = this.domainIds.isEmpty() ? null : this.domainIds.get(0);
+  }
+
+  public AccountInfo forDomainId(BigInteger domainId) {
+    AccountInfo accountInfo = new AccountInfo();
+    accountInfo.setMerchantId(this.merchantId);
+    accountInfo.setGroupId(this.groupId);
+    accountInfo.setDomainId(domainId);
+    accountInfo.setPath(this.path);
+    return accountInfo;
   }
 
   public BigInteger getGroupId() {
