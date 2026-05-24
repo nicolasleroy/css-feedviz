@@ -38,7 +38,6 @@ public class ProductsServiceTest {
   private final String TEST_CONFIG_DIR = "./config/test";
   private final String ACCOUNT_INFO_FILE_NAME = "account-info.json";
   private final BigInteger TEST_DOMAIN_ID = BigInteger.valueOf(456);
-  private final int TEST_PAGE_SIZE = 100;
 
   @Mock private CssProductsServiceClient cssProductsServiceClient;
 
@@ -56,7 +55,7 @@ public class ProductsServiceTest {
 
     String parent = String.format("accounts/%s", TEST_DOMAIN_ID);
     ListCssProductsRequest listCssProductsRequest =
-        ListCssProductsRequest.newBuilder().setParent(parent).setPageSize(TEST_PAGE_SIZE).build();
+        ListCssProductsRequest.newBuilder().setParent(parent).build();
 
     ProductsService productsService = ProductsService.create(accountInfo);
     productsService.setCssProductsServiceClient(cssProductsServiceClient);

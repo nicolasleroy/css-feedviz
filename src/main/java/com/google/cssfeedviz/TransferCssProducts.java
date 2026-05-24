@@ -1,12 +1,12 @@
 package com.google.cssfeedviz;
 
 import com.google.cssfeedviz.css.ProductsService;
+import com.google.cssfeedviz.css.ProductsService.CssProductsPage;
 import com.google.cssfeedviz.gcp.BigQueryService;
 import com.google.cssfeedviz.utils.AccountInfo;
-import com.google.shopping.css.v1.CssProduct;
+import com.google.cssfeedviz.utils.TransferCheckpoint;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -61,19 +61,59 @@ public class TransferCssProducts {
         throw new IllegalArgumentException("At least one CSS Domain ID must be provided.");
       }
       BigQueryService bigQueryService = new BigQueryService(accountInfo);
-      LocalDateTime transferDate = LocalDateTime.now();
 
       for (BigInteger domainId : accountInfo.getDomainIds()) {
         AccountInfo domainAccountInfo = accountInfo.forDomainId(domainId);
-        ProductsService productsService = ProductsService.create(domainAccountInfo);
-        Iterable<CssProduct> cssProducts = productsService.listCssProducts();
-        String tableName = BigQueryService.getCssProductsTableName(domainId.toString());
-        bigQueryService.streamCssProducts(
-            DATASET_NAME, DATASET_LOCATION, tableName, cssProducts, transferDate);
+        try (ProductsService productsService = ProductsService.create(domainAccountInfo)) {
+          String tableName = BigQueryService.getCssProductsTableName(domainId.toString());
+          transferDomainProducts(domainId, tableName, productsService, bigQueryService);
+        }
       }
     } catch (Exception e) {
       System.err.println(e.getMessage());
       e.printStackTrace();
+      System.exit(1);
+    }
+  }
+
+  private static void transferDomainProducts(
+      BigInteger domainId,
+      String tableName,
+      ProductsService productsService,
+      BigQueryService bigQueryService)
+      throws Exception {
+    TransferCheckpoint checkpoint = TransferCheckpoint.load(domainId, tableName);
+    String pageToken = checkpoint.getNextPageToken();
+    long rowsWritten = checkpoint.getRowsWritten();
+    long pagesWritten = checkpoint.getPagesWritten();
+
+    if (!pageToken.isEmpty()) {
+      System.out.printf(
+          "Resuming domain %s at page %d with %d rows already written.%n",
+          domainId, pagesWritten + 1, rowsWritten);
+    }
+
+    while (true) {
+      CssProductsPage page = productsService.listCssProductsPage(pageToken);
+      if (!page.products().isEmpty()) {
+        bigQueryService.streamCssProducts(
+            DATASET_NAME, DATASET_LOCATION, tableName, page.products(), checkpoint.getTransferDate());
+        rowsWritten += page.products().size();
+        pagesWritten += 1;
+      }
+
+      pageToken = page.nextPageToken();
+      checkpoint = checkpoint.save(pageToken, rowsWritten, pagesWritten);
+      System.out.printf(
+          "Transferred domain %s page %d, total rows written: %d.%n",
+          domainId, pagesWritten, rowsWritten);
+
+      if (pageToken == null || pageToken.isEmpty()) {
+        checkpoint.delete();
+        System.out.printf(
+            "Completed domain %s, total rows written: %d.%n", domainId, rowsWritten);
+        return;
+      }
     }
   }
 }

@@ -1,12 +1,14 @@
 package com.google.cssfeedviz;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.cssfeedviz.css.ProductsService;
+import com.google.cssfeedviz.css.ProductsService.CssProductsPage;
 import com.google.cssfeedviz.gcp.BigQueryService;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
 import com.google.shopping.css.v1.CssProduct;
@@ -28,6 +30,7 @@ public class TransferCssProductsTest {
   private final String TEST_GROUP_ID = "123";
   private final String TEST_DOMAIN_ID = "456";
   private final String TEST_DOMAIN_ID_2 = "457";
+  private final String TEST_CHECKPOINT_DIR = "target/test-checkpoints";
   private final String TEST_MERCHANT_ID = "789";
   private final CssProduct CSS_PRODUCT = CssProduct.newBuilder().setName(TEST_PRODUCT_NAME).build();
   private final List<CssProduct> CSS_PRODUCT_LIST = List.of(CSS_PRODUCT);
@@ -41,6 +44,7 @@ public class TransferCssProductsTest {
   public void setUp() {
     clearAccountSystemProperties();
     System.setProperty("feedviz.config.dir", TEST_CONFIG_DIR);
+    System.setProperty("feedviz.checkpoint.dir", TEST_CHECKPOINT_DIR);
 
     mockedStaticLocalDateTime = mockStatic(LocalDateTime.class);
     mockedStaticLocalDateTime.when(LocalDateTime::now).thenReturn(TEST_TRANSFER_DATE);
@@ -49,7 +53,8 @@ public class TransferCssProductsTest {
         mockConstruction(
             ProductsService.class,
             (mock, context) -> {
-              when(mock.listCssProducts()).thenReturn(CSS_PRODUCT_LIST);
+              when(mock.listCssProductsPage(anyString()))
+                  .thenReturn(new CssProductsPage(CSS_PRODUCT_LIST, ""));
             });
     mockBigQueryServiceController = mockConstruction(BigQueryService.class, (mock, context) -> {});
   }
@@ -67,6 +72,7 @@ public class TransferCssProductsTest {
     System.clearProperty("feedviz.account.info.domain.ids");
     System.clearProperty("feedviz.account.info.group.id");
     System.clearProperty("feedviz.account.info.merchant.id");
+    System.clearProperty("feedviz.checkpoint.dir");
   }
 
   @Test
@@ -78,7 +84,7 @@ public class TransferCssProductsTest {
           DescriptorValidationException {
     TransferCssProducts.main(null);
     ProductsService mockProductsService = mockProductsServiceController.constructed().get(0);
-    verify(mockProductsService).listCssProducts();
+    verify(mockProductsService).listCssProductsPage("");
 
     BigQueryService mockBigQueryService = mockBigQueryServiceController.constructed().get(0);
     verify(mockBigQueryService)
@@ -103,7 +109,7 @@ public class TransferCssProductsTest {
 
     TransferCssProducts.main(null);
     ProductsService mockProductsService = mockProductsServiceController.constructed().get(0);
-    verify(mockProductsService).listCssProducts();
+    verify(mockProductsService).listCssProductsPage("");
 
     BigQueryService mockBigQueryService = mockBigQueryServiceController.constructed().get(0);
     verify(mockBigQueryService)
